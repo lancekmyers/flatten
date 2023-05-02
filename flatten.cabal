@@ -31,7 +31,7 @@ common common-options
 library
   import:          common-options
   hs-source-dirs:  src
-  exposed-modules: Lib
+  exposed-modules: Lib, Flat
   build-depends:
     , containers
     , mtl
@@ -39,8 +39,9 @@ library
     , bytestring 
     , recursion-schemes
     , vector
+    , data-fix
 
-executable PKGNAME-exe
+executable flatten-exe
   import:         common-options
   hs-source-dirs: app
   main-is:        Main.hs
