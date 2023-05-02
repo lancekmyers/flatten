@@ -1,8 +1,9 @@
-import Test.Hspec
+import Test.Tasty
+import Test.Tasty.HUnit
 
 main :: IO ()
 main =
-  hspec $
-    describe "PKGNAME-test" $
-      it "works" $
-        2 + 2 `shouldBe` (4 :: Int)
+  defaultMain $
+    testGroup
+      "Checked"
+      [testCase "two plus two" $ 2 + 2 @?= (4 :: Int)]

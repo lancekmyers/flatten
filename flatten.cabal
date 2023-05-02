@@ -1,5 +1,5 @@
 cabal-version:   2.4
-name:            PKGNAME
+name:            flatten
 version:         0
 license:         BSD-3-Clause
 build-type:      Simple
@@ -35,34 +35,39 @@ library
   build-depends:
     , containers
     , mtl
+    , text
+    , bytestring 
+    , recursion-schemes
+    , vector
 
 executable PKGNAME-exe
   import:         common-options
   hs-source-dirs: app
   main-is:        Main.hs
-  build-depends:  PKGNAME
+  build-depends:  flatten
   ghc-options:    -threaded -rtsopts -with-rtsopts=-N
 
-test-suite PKGNAME-test
+test-suite flatten-test
   import:         common-options
   type:           exitcode-stdio-1.0
   hs-source-dirs: test
   main-is:        Spec.hs
   build-depends:
-    , hspec
-    , HUnit
-    , PKGNAME
-    , QuickCheck
+    , tasty
+    , tasty-bench
+    , tasty-hunit
+    , tasty-hedgehog
+    , flatten
 
   ghc-options:    -threaded -rtsopts -with-rtsopts=-N
 
-benchmark PKGNAME-bench
+benchmark flatten-bench
   import:         common-options
   type:           exitcode-stdio-1.0
   hs-source-dirs: bench
   main-is:        Main.hs
   build-depends:
     , criterion
-    , PKGNAME
+    , flatten
 
   ghc-options:    -threaded -rtsopts -with-rtsopts=-N
