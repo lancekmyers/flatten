@@ -20,9 +20,10 @@ main = do
   let example_flat = force flatten example
   print example
   defaultMain
-    [ bench "tree walking" $ nf interp example,
-      bench "flatten then eval " $ nf flatten example,
-      bench
-        "flat fold"
-        $ nf flatInterp example_flat
+    [ bgroup
+        "Interpreting"
+        [ bench "tree walking" $ nf interp example,
+          bench "flat fold" $ nf flatInterp example_flat
+        ],
+      bench "flatten" $ nf flatten example
     ]

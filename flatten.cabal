@@ -71,7 +71,7 @@ benchmark flatten-bench
   main-is:        Main.hs
   ghc-options: 
     -fproc-alignment=64 
-    -with-rtsopts=-A32m"
+    -with-rtsopts=-A32m
     -fllvm -O2
   build-depends:
     , tasty
