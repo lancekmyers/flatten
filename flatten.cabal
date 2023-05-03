@@ -27,7 +27,7 @@ common common-options
     -Wall -Wcompat -Widentities -Wincomplete-uni-patterns
     -Wincomplete-record-updates -Wredundant-constraints
     -fhide-source-paths -Wpartial-fields
-
+    -fllvm -O2
 library
   import:          common-options
   hs-source-dirs:  src
@@ -39,6 +39,8 @@ library
     , bytestring 
     , recursion-schemes
     , vector
+    , derive-storable
+    , deepseq
     , data-fix
 
 executable flatten-exe
@@ -67,8 +69,13 @@ benchmark flatten-bench
   type:           exitcode-stdio-1.0
   hs-source-dirs: bench
   main-is:        Main.hs
+  ghc-options: 
+    -fproc-alignment=64 
+    -with-rtsopts=-A32m"
+    -fllvm -O2
   build-depends:
-    , criterion
+    , tasty
+    , tasty-bench
+    , deepseq
     , flatten
 
-  ghc-options:    -threaded -rtsopts -with-rtsopts=-N

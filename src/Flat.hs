@@ -1,22 +1,36 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 
-module Flat where
+module Flat (Flat (..), Expr, flatInterp, flatInterp', interp, flatten) where
 
+import Control.DeepSeq
 import Control.Monad.State
-import Data.Fix (Fix (..))
+import Data.Fix (Fix (..), Mu (..))
 import Data.Functor.Foldable
-import qualified Data.Vector as V
+import qualified Data.Vector.Generic as V
+import Data.Vector.Storable (Storable)
+import qualified Data.Vector.Storable as VS
+import Foreign.Storable.Generic (GStorable)
+import GHC.Generics
 
 data ExprF a = AddF a a | SubF a a | MulF a a | Lit Int
-  deriving (Functor, Foldable, Traversable)
+  deriving (Functor, Foldable, Traversable, Generic, Generic1, NFData1)
+
+instance (Storable a) => GStorable (ExprF a)
 
 instance Show (ExprF String) where
   show (Lit x) = show x
@@ -31,12 +45,20 @@ instance Show (ExprF Ind) where
   show (SubF x y) = "(- " ++ show x ++ " " ++ show y ++ ")"
 
 newtype Expr = Expr {getExpr :: Fix ExprF}
+  deriving (Generic)
+
+-- instance NFData Expr
+
+type instance Base Expr = ExprF
+
+instance Recursive Expr where
+  project (Expr x) = Expr <$> project x
 
 instance Num Expr where
-  fromInteger x = Expr (Fix (Lit $ fromInteger x))
-  (Expr x) + (Expr y) = Expr . Fix $ AddF x y
-  (Expr x) * (Expr y) = Expr . Fix $ MulF x y
-  (Expr x) - (Expr y) = Expr . Fix $ SubF x y
+  fromInteger x = Expr (embed (Lit $ fromInteger x))
+  (Expr x) + (Expr y) = Expr . embed $ AddF x y
+  (Expr x) * (Expr y) = Expr . embed $ MulF x y
+  (Expr x) - (Expr y) = Expr . embed $ SubF x y
 
 instance Show Expr where
   show (Expr e) = cata alg e
@@ -44,25 +66,39 @@ instance Show Expr where
       alg = show
 
 newtype Ind = Ind Int
+  deriving (Generic)
+
+instance GStorable Ind
+
+instance NFData Ind
+
+instance NFData (ExprF Ind)
 
 instance Show Ind where
   show (Ind i) = '%' : show i
 
 type FlatExpr = Flat ExprF
 
-showFlat :: Show (f Ind) => Flat f -> String
+showFlat :: (Storable (f Ind), Show (f Ind)) => Flat f -> String
 showFlat (Flat xs) = unlines . map show . V.toList $ xs
 
-len :: Flat f -> Int
+len :: Storable (f Ind) => Flat f -> Int
 len (Flat v) = V.length v
 
-snoc :: Flat f -> f Ind -> Flat f
+snoc :: Storable (f Ind) => Flat f -> f Ind -> Flat f
 snoc (Flat v) x = Flat (V.snoc v x)
 
-newtype Flat f = Flat (V.Vector (f Ind))
+newtype Flat f = Flat (VS.Vector (f Ind))
+  deriving (Generic)
 
-flat :: forall t f. (Base t ~ f, Traversable f, Recursive t) => t -> Flat f
-flat x = execState (go x) (Flat [])
+deriving instance (NFData (f Ind)) => NFData (Flat f)
+
+flatten ::
+  forall t f.
+  (Storable (f Ind), Base t ~ f, Traversable f, Recursive t) =>
+  t ->
+  Flat f
+flatten x = execState (go x) (Flat [])
   where
     go :: t -> State (Flat f) Ind
     go x = do
@@ -70,33 +106,6 @@ flat x = execState (go x) (Flat [])
       i <- gets len
       modify (flip snoc x')
       return (Ind i)
-
-flatten :: Expr -> FlatExpr
-flatten (Expr e) = execState (flatten' e) (Flat [])
-
-flatten' :: (Fix ExprF) -> State FlatExpr (Ind)
-flatten' (Fix (Lit x)) = do
-  i <- gets len
-  modify (flip snoc (Lit x))
-  return $ Ind i
-flatten' (Fix (AddF x y)) = do
-  xi <- flatten' x
-  yi <- flatten' y
-  i <- gets len
-  modify (flip snoc (AddF xi yi))
-  return $ Ind i
-flatten' (Fix (SubF x y)) = do
-  xi <- flatten' x
-  yi <- flatten' y
-  i <- gets len
-  modify (flip snoc (SubF xi yi))
-  return $ Ind i
-flatten' (Fix (MulF x y)) = do
-  xi <- flatten' x
-  yi <- flatten' y
-  i <- gets len
-  modify (flip snoc (MulF xi yi))
-  return $ Ind i
 
 interp :: Expr -> Int
 interp = cata alg . getExpr
@@ -106,17 +115,28 @@ interp = cata alg . getExpr
     alg (MulF x y) = x * y
     alg (Lit x) = x
 
-flattenInterp' :: FlatExpr -> Ind -> Int
-flattenInterp' e@(Flat xs) (Ind i) = case xs V.! i of
-  (AddF x y) -> flattenInterp' e x + flattenInterp' e y
-  (SubF x y) -> flattenInterp' e x - flattenInterp' e y
-  (MulF x y) -> flattenInterp' e x * flattenInterp' e y
-  (Lit x) -> x
+flatFold :: forall f a. (Storable (f Ind), Functor f) => (f a -> a) -> Flat f -> a
+flatFold func (Flat xs) = go (Ind $ V.length xs - 1)
+  where
+    go :: Ind -> a
+    go (Ind i) = func (go <$> xs V.! i)
 
-flatInterp :: FlatExpr -> Int
-flatInterp expr = case len expr of
+flatInterp = flatFold alg
+  where
+    alg (AddF x y) = x + y
+    alg (MulF x y) = x * y
+    alg (SubF x y) = x - y
+    alg (Lit x) = x
+
+flatInterp' :: FlatExpr -> Int
+flatInterp' expr = case len expr of
   0 -> 0
-  n -> flattenInterp' expr (Ind $ n - 1)
-
-e :: Expr
-e = 1 + 2 - 4 + 0
+  n -> flattenInterp' (Ind $ n - 1)
+  where
+    Flat xs = expr
+    flattenInterp' :: Ind -> Int
+    flattenInterp' (Ind i) = case xs V.! i of
+      (AddF x y) -> flattenInterp' x + flattenInterp' y
+      (SubF x y) -> flattenInterp' x - flattenInterp' y
+      (MulF x y) -> flattenInterp' x * flattenInterp' y
+      (Lit x) -> x
