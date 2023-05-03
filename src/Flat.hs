@@ -15,12 +15,13 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Flat (Flat (..), Expr, flatInterp, flatInterp', interp, flatten) where
+module Flat (Flat (..), Expr, flatInterp, flatInterp', interp, flatten, flattenSeq) where
 
 import Control.DeepSeq
 import Control.Monad.State
 import Data.Fix (Fix (..), Mu (..))
 import Data.Functor.Foldable
+import qualified Data.Sequence as Seq
 import qualified Data.Vector.Generic as V
 import Data.Vector.Storable (Storable)
 import qualified Data.Vector.Storable as VS
@@ -105,6 +106,21 @@ flatten x = execState (go x) (Flat [])
       x' <- traverse go (project x)
       i <- gets len
       modify (flip snoc x')
+      return (Ind i)
+
+-- | Flatten using a sequence as intermediate structure
+flattenSeq ::
+  forall t f.
+  (Base t ~ f, Traversable f, Recursive t) =>
+  t ->
+  Seq.Seq (f Ind)
+flattenSeq x = execState (go x) (Seq.empty)
+  where
+    go :: t -> State (Seq.Seq (f Ind)) Ind
+    go x = do
+      x' <- traverse go (project x)
+      i <- gets (Seq.length)
+      modify (Seq.|> x')
       return (Ind i)
 
 interp :: Expr -> Int

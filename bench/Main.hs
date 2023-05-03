@@ -25,5 +25,9 @@ main = do
         [ bench "tree walking" $ nf interp example,
           bench "flat fold" $ nf flatInterp example_flat
         ],
-      bench "flatten" $ nf flatten example
+      bgroup
+        "flatten"
+        [ bench "vector" $ nf flatten example,
+          bench "sequence" $ nf flattenSeq example
+        ]
     ]
