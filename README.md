@@ -1,5 +1,5 @@
-# PKGNAME
-[![PKGNAME on hackage](https://img.shields.io/hackage/v/PKGNAME)](http://hackage.haskell.org/package/PKGNAME)
-[![PKGNAME on Stackage Nightly](https://stackage.org/package/PKGNAME/badge/nightly)](https://stackage.org/nightly/package/PKGNAME)
+# Flatten
 
-Generated with [template-haskell](https://github.com/jonascarpay/template-haskell)
+Take some recursive data type expressed as the fixed point of a functor and represent it in memory as a flat arary. 
+Hopefully leading to better cache behavour and faster traversals, but the benchmarks do not support that (yet).
+
